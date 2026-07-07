@@ -83,6 +83,10 @@ public:
     bool open(std::string_view path, const std::string &password);
     bool recover(std::string_view path,const std::string &password,
                             const std::string &seed, const std::string &seed_offset = {});
+    bool recoverDeterministicWalletFromSpendKey(std::string_view path_,
+                                                    const std::string &password,
+                                                    const std::string &language,
+                                                    const std::string &spendkey_string);
     bool recoverFromKeysWithPassword(std::string_view path,
                             const std::string &password,
                             const std::string &language,

@@ -57,6 +57,13 @@ public:
                                              const std::string &viewKeyString,
                                              const std::string &spendKeyString = "",
                                              uint64_t kdf_rounds = 1) override;
+    Wallet * createDeterministicWalletFromSpendKey(std::string_view path,
+                                                            const std::string &password,
+                                                            const std::string &language,
+                                                            NetworkType nettype,
+                                                            uint64_t restoreHeight,
+                                                            const std::string &spendkey_string,
+                                                            uint64_t kdf_rounds = 1) override;
     Wallet * createWalletFromDevice(std::string_view path,
                                             const std::string &password,
                                             NetworkType nettype,

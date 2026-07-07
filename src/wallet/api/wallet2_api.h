@@ -1403,6 +1403,25 @@ struct WalletManagerBase
             uint64_t kdf_rounds = 1) = 0;
 
     /*!
+     * \brief  recover deterministic wallet from spend key.
+     * \param  path           Name of wallet file to be created
+     * \param  password       Password of wallet file
+     * \param  language       language
+     * \param  nettype        Network type
+     * \param  restoreHeight  restore from start height
+     * \param  spendKeyString spend key
+     * \param  kdf_rounds     Number of rounds for key derivation function
+     * \return                Wallet instance (Wallet::status() needs to be called to check if recovered successfully)
+     */
+    virtual Wallet* createDeterministicWalletFromSpendKey(std::string_view path,
+                                                           const std::string &password,
+                                                           const std::string &language,
+                                                           NetworkType nettype,
+                                                           uint64_t restoreHeight,
+                                                           const std::string &spendkey_string,
+                                                           uint64_t kdf_rounds = 1) = 0;
+
+    /*!
      * \brief  creates wallet using hardware device.
      * \param  path                 Name of wallet file to be created (utf-8)
      * \param  password             Password of wallet file
