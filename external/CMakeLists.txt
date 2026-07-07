@@ -155,6 +155,11 @@ add_library(cpr STATIC EXCLUDE_FROM_ALL ${cpr_sources})
 target_link_libraries(cpr PUBLIC CURL::libcurl)
 target_include_directories(cpr PUBLIC cpr/include)
 target_compile_definitions(cpr PUBLIC CPR_CURL_NOSIGNAL)
+
+if(MINGW)
+    target_compile_definitions(cpr PUBLIC CURL_STATICLIB)
+endif()
+
 add_library(cpr::cpr ALIAS cpr)
 
 file(READ cpr/CMakeLists.txt cpr_cmake_head LIMIT 1000)

@@ -3860,7 +3860,7 @@ bool WalletImpl::parse_uri(const std::string &uri, std::string &address, std::st
 EXPORT
 std::string WalletImpl::getDefaultDataDir() const
 {
- return tools::get_default_data_dir();
+ return tools::get_default_data_dir().string();
 }
 
 EXPORT

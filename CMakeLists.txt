@@ -90,6 +90,23 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     endif()
 endif()
 
+if(WIN32 AND DEFINED HOST_ABI AND HOST_ABI MATCHES "mingw")
+  add_compile_options(
+    -fpermissive
+    -Wno-error
+    -Wno-error=extra
+    -Wno-extra
+    -Wno-error=shift-count-overflow
+    -D_GLIBCXX_USE_INT128=1
+  )
+endif()
+
+if(WIN32)
+    add_compile_options(-fno-stack-protector)
+    add_compile_options(-U_FORTIFY_SOURCE)
+    add_compile_definitions(_FORTIFY_SOURCE=0)
+endif()
+
 # Add this line to suppress implicit-fallthrough warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-implicit-fallthrough")
 
@@ -488,7 +505,7 @@ endif()
 
 
 option(WITH_SYSTEMD "Attempts to link against and enable systemd daemon notification support" ON)
-if (WITH_SYSTEMD AND NOT BUILD_STATIC_DEPS)
+if (WITH_SYSTEMD AND NOT BUILD_STATIC_DEPS AND NOT ANDROID AND NOT WIN32)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(SYSTEMD libsystemd IMPORTED_TARGET)
 
