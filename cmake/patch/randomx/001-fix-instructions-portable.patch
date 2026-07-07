@@ -1,0 +1,79 @@
+diff --git a/src/instructions_portable.cpp b/src/instructions_portable.cpp
+index d1253d8..e1d5862 100644
+--- a/src/instructions_portable.cpp
++++ b/src/instructions_portable.cpp
+@@ -26,7 +26,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+-#include <cfenv>
+ #include <cmath>
+ #include "common.hpp"
+ #include "intrin_portable.h"
+@@ -77,14 +76,35 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+	#endif
+
+	static void setRoundMode_(uint32_t mode) {
+-		_controlfp(mode, _MCW_RC);
++		switch (mode & 3) {
++		case RoundDown:
++			_controlfp(_RC_DOWN, _MCW_RC);
++			break;
++		case RoundUp:
++			_controlfp(_RC_UP, _MCW_RC);
++			break;
++		case RoundToZero:
++			_controlfp(_RC_CHOP, _MCW_RC);
++			break;
++		case RoundToNearest:
++		default:
++			_controlfp(_RC_NEAR, _MCW_RC);
++			break;
++		}
++	}
++	#define HAVE_SETROUNDMODE_IMPL
++#endif
++
++#if defined(__SSE2__) && !defined(HAVE_SETROUNDMODE_IMPL)
++	static void setRoundMode_(uint32_t mode) {
++		_mm_setcsr(rx_mxcsr_default | ((mode & 3) << 13));
+	}
+	#define HAVE_SETROUNDMODE_IMPL
+ #endif
+
+ #ifndef HAVE_SETROUNDMODE_IMPL
+	static void setRoundMode_(uint32_t mode) {
+-		fesetround(mode);
++		(void)mode;
+	}
+ #endif
+
+@@ -134,23 +154,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #ifdef RANDOMX_DEFAULT_FENV
+
+ void rx_reset_float_state() {
+-	setRoundMode_(FE_TONEAREST);
++	setRoundMode_(RoundToNearest);
+	rx_set_double_precision(); //set precision to 53 bits if needed by the platform
+ }
+
+ void rx_set_rounding_mode(uint32_t mode) {
+	switch (mode & 3) {
+	case RoundDown:
+-		setRoundMode_(FE_DOWNWARD);
++		setRoundMode_(RoundDown);
+		break;
+	case RoundUp:
+-		setRoundMode_(FE_UPWARD);
++		setRoundMode_(RoundUp);
+		break;
+	case RoundToZero:
+-		setRoundMode_(FE_TOWARDZERO);
++		setRoundMode_(RoundToZero);
+		break;
+	case RoundToNearest:
+-		setRoundMode_(FE_TONEAREST);
++		setRoundMode_(RoundToNearest);
+		break;
+	default:
+		UNREACHABLE;

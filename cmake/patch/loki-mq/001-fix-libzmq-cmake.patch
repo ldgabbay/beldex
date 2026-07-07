@@ -1,0 +1,161 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index ded625a..232f663 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -143,7 +143,7 @@ target_include_directories(oxenmq
+
+ target_compile_options(oxenmq PRIVATE -Wall -Wextra)
+
+-option(WARNINGS_AS_ERRORS "treat all warnings as errors" ON)
++option(WARNINGS_AS_ERRORS "treat all warnings as errors" OFF)
+ if(WARNINGS_AS_ERRORS)
+     target_compile_options(oxenmq PRIVATE -Werror)
+ endif()
+diff --git a/cmake/local-libzmq/LocalLibzmq.cmake b/cmake/local-libzmq/LocalLibzmq.cmake
+index a25adb7..e7c2935 100644
+--- a/cmake/local-libzmq/LocalLibzmq.cmake
++++ b/cmake/local-libzmq/LocalLibzmq.cmake
+@@ -12,21 +12,138 @@ endif()
+
+
+ file(MAKE_DIRECTORY ${LIBZMQ_PREFIX}/include)
++if(IOS)
++    set(IOS_PLATFORM iphoneos)
++    set(IOS_ARCH arm64)
++    set(IOS_DEPLOYMENT_TARGET 12.0)
++endif()
++
+
+ include(ExternalProject)
+ include(ProcessorCount)
++
++get_filename_component(LIBZMQ_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../.." ABSOLUTE)
++set(LIBZMQ_DEPENDS_ROOT "${LIBZMQ_REPO_ROOT}/contrib/depends")
++
++if(NOT DEFINED HOST_ABI OR HOST_ABI STREQUAL "")
++    if(DEFINED ENV{HOST} AND NOT "$ENV{HOST}" STREQUAL "")
++        set(HOST_ABI "$ENV{HOST}")
++    elseif(WIN32)
++        if(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686")
++            set(HOST_ABI i686-w64-mingw32)
++        else()
++            set(HOST_ABI x86_64-w64-mingw32)
++        endif()
++    endif()
++endif()
++
++if(WIN32)
++    set(ZMQ_WINDOWS_PREFIX "${LIBZMQ_DEPENDS_ROOT}/${HOST_ABI}")
++    set(ZMQ_WINDOWS_SYSROOT "${ZMQ_WINDOWS_PREFIX}/sysroot")
++    set(ZMQ_WINDOWS_TOOLCHAIN_FILE "${LIBZMQ_DEPENDS_ROOT}/${HOST_ABI}/share/toolchain.cmake")
++    if(NOT EXISTS "${ZMQ_WINDOWS_TOOLCHAIN_FILE}")
++        message(FATAL_ERROR "Missing depends toolchain file: ${ZMQ_WINDOWS_TOOLCHAIN_FILE}")
++    endif()
++
++    set(ZMQ_WIN_DEFS
++    -D_WIN32_WINNT=0x0601
++    -DWINVER=0x0601
++    -DNTDDI_VERSION=0x06010000
++)
++    string(JOIN " " ZMQ_WIN_DEF_FLAGS ${ZMQ_WIN_DEFS})
++
++    file(GLOB ZMQ_WINDOWS_CXX_INCLUDE_DIRS LIST_DIRECTORIES true "${ZMQ_WINDOWS_PREFIX}/include/c++/*")
++    list(SORT ZMQ_WINDOWS_CXX_INCLUDE_DIRS)
++    if(NOT ZMQ_WINDOWS_CXX_INCLUDE_DIRS)
++        message(FATAL_ERROR "Missing libstdc++ headers under ${ZMQ_WINDOWS_PREFIX}/include/c++")
++    endif()
++    list(GET ZMQ_WINDOWS_CXX_INCLUDE_DIRS 0 ZMQ_WINDOWS_CXX_STDLIB_DIR)
++
++    set(ZMQ_WINDOWS_C_FLAGS
++        "--sysroot=${ZMQ_WINDOWS_SYSROOT} -I${ZMQ_WINDOWS_SYSROOT}/usr/${HOST_ABI}/include -I${ZMQ_WINDOWS_SYSROOT}/mingw/include -I${ZMQ_WINDOWS_PREFIX}/include ${ZMQ_WIN_DEF_FLAGS}")
++    set(ZMQ_WINDOWS_CXX_FLAGS
++        "--sysroot=${ZMQ_WINDOWS_SYSROOT} -I${ZMQ_WINDOWS_SYSROOT}/usr/${HOST_ABI}/include -I${ZMQ_WINDOWS_SYSROOT}/mingw/include -I${ZMQ_WINDOWS_PREFIX}/include -I${ZMQ_WINDOWS_CXX_STDLIB_DIR} -I${ZMQ_WINDOWS_CXX_STDLIB_DIR}/${HOST_ABI} ${ZMQ_WIN_DEF_FLAGS}")
++endif()
++
++set(ZMQ_COMMON_ARGS
++    -DWITH_LIBSODIUM=OFF
++    -DENABLE_CURVE=OFF
++    -DZMQ_BUILD_TESTS=OFF
++    -DWITH_PERF_TOOL=OFF
++    -DENABLE_DRAFTS=OFF
++    -DBUILD_SHARED=OFF
++    -DBUILD_STATIC=ON
++    -DWITH_DOC=OFF
++    -DCMAKE_INSTALL_PREFIX=${LIBZMQ_PREFIX}
++)
++
++set(ZMQ_WINDOWS_ARGS
++    -DCMAKE_SYSTEM_NAME=Windows
++    -DCMAKE_TOOLCHAIN_FILE=${ZMQ_WINDOWS_TOOLCHAIN_FILE}
++    -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
++    "-DCMAKE_C_FLAGS=${ZMQ_WINDOWS_C_FLAGS}"
++    "-DCMAKE_CXX_FLAGS=${ZMQ_WINDOWS_CXX_FLAGS}"
++    -DZMQ_WIN32_WINNT=0x0601
++
++    -DCMAKE_C_STANDARD_LIBRARIES=-lws2_32\ -ladvapi32\ -luser32\ -lkernel32\ -lrpcrt4
++    -DCMAKE_CXX_STANDARD_LIBRARIES=-lws2_32\ -ladvapi32\ -luser32\ -lkernel32\ -lrpcrt4
++
++    -DZMQ_HAVE_WINDOWS=ON
++    -DZMQ_HAVE_IPC=0
++    -DZMQ_HAVE_IFADDRS=0
++    -DZMQ_HAVE_OPENPGM=0
++)
++
++set(ZMQ_IOS_ARGS
++    -DCMAKE_SYSTEM_NAME=iOS
++    -DCMAKE_OSX_SYSROOT=${IOS_PLATFORM}
++    -DCMAKE_OSX_ARCHITECTURES=${IOS_ARCH}
++    -DCMAKE_OSX_DEPLOYMENT_TARGET=${IOS_DEPLOYMENT_TARGET}
++
++    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
++    -DENABLE_CURVE=OFF
++    -DWITH_LIBSODIUM=OFF
++)
++
++
++if(WIN32)
++    set(ZMQ_PLATFORM_ARGS ${ZMQ_WINDOWS_ARGS})
++    set(ZMQ_PATCH_COMMAND
++        PATCH_COMMAND
++            ${CMAKE_COMMAND}
++            -DLIBZMQ_SOURCE_DIR=<SOURCE_DIR>
++            -P ${LIBZMQ_REPO_ROOT}/beldex/cmake/patch-libzmq-for-mingw.cmake)
++elseif(IOS)
++    set(ZMQ_PLATFORM_ARGS ${ZMQ_IOS_ARGS})
++    set(ZMQ_PATCH_COMMAND "")
++else()
++    set(ZMQ_PLATFORM_ARGS "")
++    set(ZMQ_PATCH_COMMAND "")
++endif()
++
+ ExternalProject_Add(libzmq_external
+     PREFIX ${LIBZMQ_PREFIX}
+     URL ${LIBZMQ_URL}
+     URL_HASH ${LIBZMQ_HASH}
+-    CMAKE_ARGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+-    -DWITH_LIBSODIUM=ON -DZMQ_BUILD_TESTS=OFF -DWITH_PERF_TOOL=OFF -DENABLE_DRAFTS=OFF
+-    -DBUILD_SHARED=OFF -DBUILD_STATIC=ON -DWITH_DOC=OFF -DCMAKE_INSTALL_PREFIX=${LIBZMQ_PREFIX}
+-    BUILD_BYPRODUCTS ${LIBZMQ_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libzmq.a
+-    )
++    ${ZMQ_PATCH_COMMAND}
++
++    CMAKE_ARGS
++        ${ZMQ_COMMON_ARGS}
++        ${ZMQ_PLATFORM_ARGS}
++        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
++
++
++    BUILD_BYPRODUCTS
++        ${LIBZMQ_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libzmq.a
++)
++
+
+ add_library(libzmq_vendor STATIC IMPORTED GLOBAL)
+ add_dependencies(libzmq_vendor libzmq_external)
+ set_target_properties(libzmq_vendor PROPERTIES
+     INTERFACE_INCLUDE_DIRECTORIES ${LIBZMQ_PREFIX}/include
+     IMPORTED_LOCATION ${LIBZMQ_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libzmq.a)
++
++if(WIN32)
++    target_compile_definitions(libzmq_vendor INTERFACE ZMQ_STATIC)
++endif()

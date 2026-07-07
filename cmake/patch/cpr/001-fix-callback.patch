@@ -1,0 +1,11 @@
+diff --git a/include/cpr/callback.h b/include/cpr/callback.h
+index e54c4fb..93c810b 100644
+--- a/include/cpr/callback.h
++++ b/include/cpr/callback.h
+@@ -3,6 +3,7 @@
+
+ #include "cprtypes.h"
+
++#include <cstdint>
+ #include <functional>
+ #include <utility>

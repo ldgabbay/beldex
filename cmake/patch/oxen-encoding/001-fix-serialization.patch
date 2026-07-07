@@ -1,0 +1,67 @@
+diff --git a/oxenc/bt_serialize.h b/oxenc/bt_serialize.h
+index 0185a23..8753045 100644
+--- a/oxenc/bt_serialize.h
++++ b/oxenc/bt_serialize.h
+@@ -760,12 +760,14 @@ class bt_list_consumer {
+             throw std::runtime_error{"Cannot create a bt_list_consumer with non-list data"};
+         data.remove_prefix(1);
+     }
+-    bt_list_consumer(std::basic_string_view<unsigned char> data) :
+-            bt_list_consumer{
+-                    std::string_view{reinterpret_cast<const char*>(data.data()), data.size()}} {}
+-    bt_list_consumer(std::basic_string_view<std::byte> data) :
+-            bt_list_consumer{
+-                    std::string_view{reinterpret_cast<const char*>(data.data()), data.size()}} {}
++
++    bt_list_consumer(const std::vector<uint8_t>& data) :
++        bt_list_consumer{
++                std::string_view{reinterpret_cast<const char*>(data.data()), data.size()}} {}
++
++    bt_list_consumer(const std::vector<std::byte>& data) :
++        bt_list_consumer{
++                std::string_view{reinterpret_cast<const char*>(data.data()), data.size()}} {}
+
+     /// Copy constructor.  Making a copy copies the current position so can be used for multipass
+     /// iteration through a list.
+@@ -1037,12 +1039,13 @@ class bt_dict_consumer : private bt_list_consumer {
+             throw std::runtime_error{"Cannot create a bt_dict_consumer with non-dict data"};
+         data.remove_prefix(1);
+     }
+-    bt_dict_consumer(std::basic_string_view<unsigned char> data) :
+-            bt_dict_consumer{
+-                    std::string_view{reinterpret_cast<const char*>(data.data()), data.size()}} {}
+-    bt_dict_consumer(std::basic_string_view<std::byte> data) :
+-            bt_dict_consumer{
+-                    std::string_view{reinterpret_cast<const char*>(data.data()), data.size()}} {}
++    bt_dict_consumer(const std::vector<uint8_t>& data) :
++        bt_dict_consumer{
++                std::string_view{reinterpret_cast<const char*>(data.data()), data.size()}} {}
++
++    bt_dict_consumer(const std::vector<std::byte>& data) :
++        bt_dict_consumer{
++                std::string_view{reinterpret_cast<const char*>(data.data()), data.size()}} {}
+
+     /// Copy constructor.  Making a copy copies the current position so can be used for multipass
+     /// iteration through a list.
+diff --git a/oxenc/endian.h b/oxenc/endian.h
+index 8350ae8..1e51411 100644
+--- a/oxenc/endian.h
++++ b/oxenc/endian.h
+@@ -11,9 +11,17 @@
+ #define bswap_32(x) _byteswap_ulong(x)
+ #define bswap_64(x) _byteswap_uint64(x)
+ #elif defined(__clang__) || defined(__GNUC__)
++#ifndef bswap_16
+ #define bswap_16(x) __builtin_bswap16(x)
++#endif
++
++#ifndef bswap_32
+ #define bswap_32(x) __builtin_bswap32(x)
++#endif
++
++#ifndef bswap_64
+ #define bswap_64(x) __builtin_bswap64(x)
++#endif
+ #elif defined(__linux__)
+ extern "C" {
+ #include <byteswap.h>

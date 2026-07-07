@@ -1,0 +1,57 @@
+diff --git a/src/bsd.c b/src/bsd.c
+index b06b30d..118fc03 100644
+--- a/src/bsd.c
++++ b/src/bsd.c
+@@ -541,12 +541,13 @@ LIBUS_SOCKET_DESCRIPTOR bsd_create_listen_socket(const char *host, int port, int
+
+ #ifndef _WIN32
+ #include <sys/un.h>
+-#else
++#elif !defined(__MINGW32__) && !defined(__MINGW64__)
+ #include <afunix.h>
+ #include <io.h>
+ #endif
+ #include <sys/stat.h>
+ #include <stddef.h>
++#if !defined(__MINGW32__) && !defined(__MINGW64__)
+ LIBUS_SOCKET_DESCRIPTOR bsd_create_listen_socket_unix(const char *path, int options) {
+
+     LIBUS_SOCKET_DESCRIPTOR listenFd = LIBUS_SOCKET_ERROR;
+@@ -582,6 +583,7 @@ LIBUS_SOCKET_DESCRIPTOR bsd_create_listen_socket_unix(const char *path, int opti
+
+     return listenFd;
+ }
++#endif /* !MINGW */
+
+ LIBUS_SOCKET_DESCRIPTOR bsd_create_udp_socket(const char *host, int port) {
+     struct addrinfo hints, *result;
+@@ -659,9 +661,11 @@ LIBUS_SOCKET_DESCRIPTOR bsd_create_udp_socket(const char *host, int port) {
+     /* These are used for getting the ECN */
+     if (setsockopt(listenFd, IPPROTO_IPV6, IPV6_RECVTCLASS, (void *) &enabled, sizeof(enabled)) == -1) {
+         if (errno == 92) {
++            #if defined(IP_RECVTOS)
+             if (setsockopt(listenFd, IPPROTO_IP, IP_RECVTOS, (void *) &enabled, sizeof(enabled)) != 0) {
+                 printf("Error setting IPv4 ECN!\n");
+             }
++            #endif
+         } else {
+             printf("Error setting IPv6 ECN!\n");
+         }
+@@ -746,7 +750,7 @@ LIBUS_SOCKET_DESCRIPTOR bsd_create_connect_socket(const char *host, int port, co
+
+     return fd;
+ }
+-
++#if !defined(__MINGW32__) && !defined(__MINGW64__)
+ LIBUS_SOCKET_DESCRIPTOR bsd_create_connect_socket_unix(const char *server_path, int options) {
+
+     struct sockaddr_un server_address;
+@@ -764,4 +768,5 @@ LIBUS_SOCKET_DESCRIPTOR bsd_create_connect_socket_unix(const char *server_path,
+     connect(fd, (struct sockaddr *)&server_address, size);
+
+     return fd;
+-}
+\ No newline at end of file
++}
++#endif
+\ No newline at end of file

@@ -33,6 +33,11 @@
 # ...except for FreeBSD, because FreeBSD is a special case that doesn't play well with
 # others.
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/libuv.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/cpr.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/randomx.cmake)
+
+
 if(NOT STATIC AND NOT BUILD_STATIC_DEPS)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(OXENC liboxenc>=1.0.10 IMPORTED_TARGET)
@@ -41,6 +46,7 @@ endif()
 
 if(NOT OXENC_FOUND)
    message(STATUS "Using in-tree oxen-encoding")
+   include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/oxen-encoding.cmake)
    add_subdirectory(oxen-encoding)
  else()
    add_library(oxenc INTERFACE)
@@ -51,6 +57,7 @@ endif()
 
 if(NOT OXENMQ_FOUND)
   message(STATUS "Using in-tree oxenmq")
+  include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/loki-mq.cmake)
   add_subdirectory(loki-mq)
 else()
   add_library(oxenmq INTERFACE)
@@ -72,6 +79,8 @@ add_subdirectory(nlohmann-json)
 
 # uSockets doesn't really have a proper build system (just a very simple Makefile) so build it
 # ourselves.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/uSockets.cmake)
+
 if (NOT CMAKE_VERSION VERSION_LESS 3.12)
     set(conf_depends "CONFIGURE_DEPENDS")
 else()
