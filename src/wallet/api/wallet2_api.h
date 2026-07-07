@@ -1333,6 +1333,9 @@ struct Wallet
 
     //! get bytes sent
     virtual uint64_t getBytesSent() = 0;
+
+    //! serialize wallet cache to JSON
+    virtual std::string serializeCacheToJson() const = 0;
 };
 
 /**

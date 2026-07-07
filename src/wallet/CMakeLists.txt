@@ -35,6 +35,7 @@ add_library(wallet
   message_store.cpp
   message_transporter.cpp
   transfer_view.cpp
+  wallet_cache_to_json.cpp
 )
 
 target_link_libraries(wallet

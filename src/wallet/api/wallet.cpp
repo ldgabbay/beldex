@@ -4223,4 +4223,10 @@ uint64_t WalletImpl::getBytesSent()
     return wallet()->get_bytes_sent();
 }
 
+EXPORT
+std::string WalletImpl::serializeCacheToJson() const
+{
+    return std::string(wallet()->serialize_cache_to_json());
+}
+
 } // namespace

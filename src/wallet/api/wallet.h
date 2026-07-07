@@ -376,6 +376,8 @@ private:
     // cache connection status to avoid unnecessary RPC calls
     mutable std::atomic<bool>   m_is_connected;
     std::optional<tools::login> m_daemon_login;
+
+    virtual std::string serializeCacheToJson() const override;
 };
 
 

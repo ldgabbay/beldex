@@ -1218,6 +1218,12 @@ private:
     END_SERIALIZE()
 
     /*!
+     * \brief  Serialize wallet cache fields to JSON
+     * \return const char* pointing to JSON string containing all cache fields
+     */
+    const char* serialize_cache_to_json() const;
+
+    /*!
      * \brief  Check if wallet keys and bin files exist
      * \param  file_path           Wallet file path
      * \param  keys_file_exists    Whether keys file exists
