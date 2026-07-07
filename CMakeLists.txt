@@ -48,7 +48,7 @@ cmake_minimum_required(VERSION 3.10)
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
 # Has to be set before `project()`, and ignored on non-macos:
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.15 CACHE STRING "macOS deployment target (Apple clang only)")
+set(CMAKE_OSX_DEPLOYMENT_TARGET 12.0 CACHE STRING "macOS deployment target (Apple clang only)")
 
 project(beldex
     VERSION 7.0.2
@@ -854,9 +854,18 @@ elseif(DRAGONFLY)
 elseif(CMAKE_SYSTEM_NAME MATCHES "(SunOS|Solaris)")
   target_link_libraries(extra INTERFACE socket nsl resolv)
 elseif(APPLE)
+  target_link_libraries(extra INTERFACE "-framework Foundation -framework SystemConfiguration -framework IOKit")
+  if (NOT IOS)
+    target_link_libraries(extra INTERFACE "-framework ApplicationServices -framework AppKit")
+  endif()
   find_library(COREFOUNDATION CoreFoundation)
+  if (COREFOUNDATION)
+    target_link_libraries(extra INTERFACE ${COREFOUNDATION})
+  endif()
   find_library(IOKIT IOKit)
-  target_link_libraries(extra INTERFACE ${IOKIT} ${COREFOUNDATION})
+  if (IOKIT)
+    target_link_libraries(extra INTERFACE ${IOKIT})
+  endif()
 elseif(NOT (MSVC OR APPLE OR OPENBSD OR ANDROID))
   find_library(RT rt)
   target_link_libraries(extra INTERFACE rt)

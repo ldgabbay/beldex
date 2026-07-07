@@ -109,6 +109,7 @@ if (ARCH STREQUAL "armv8-a" AND (CMAKE_CXX_COMPILER_ID MATCHES Clang OR CMAKE_CX
   if (COMPILER_SUPPORTS_PLUS_CRYPTO)
     set_source_files_properties(cn_heavy_hash_hard_arm.cpp PROPERTIES COMPILE_FLAGS "-march=armv8-a+crypto")
   endif()
+  set_source_files_properties(cn_heavy_hash_hard_arm.cpp PROPERTIES COMPILE_FLAGS "-march=armv8-a+crypto")
 endif()
 
 
