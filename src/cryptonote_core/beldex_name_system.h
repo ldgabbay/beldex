@@ -62,7 +62,7 @@ struct mapping_value
   // bchat values the nonce will be all 0 bytes *if* the encrypted value is not the proper length
   // for an including-the-nonce value.  For newer bchat and all others the nonce is always
   // present.
-  std::pair<std::basic_string_view<unsigned char>, std::basic_string_view<unsigned char>> value_nonce(mapping_type type) const;
+  std::pair<std::string_view, std::string_view> value_nonce(mapping_type type) const;
   bool operator==(mapping_value const &other) const { return encrypted == other.encrypted && other.to_view() == to_view(); }
   bool operator==(std::string_view other)     const { return other == to_view(); }
 

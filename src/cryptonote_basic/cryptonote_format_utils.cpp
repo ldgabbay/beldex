@@ -743,7 +743,7 @@ namespace cryptonote
         for(const crypto::hash &cur_hash: b.tx_hashes) {
             needed_size+=sizeof(cur_hash);
         }
-        char txhashbuf[needed_size];
+        std::vector<char> txhashbuf(needed_size);
         char *txpointer=reinterpret_cast<char *>(&txhashbuf[0]);
         for(const crypto::hash &cur_hash: b.tx_hashes) {
             //LOG_PRINT_L0("TX hash added for signature:" << cur_hash);
@@ -751,17 +751,17 @@ namespace cryptonote
             txpointer+=sizeof(cur_hash);
         }
 
-        const int buf_size = sizeof(block_height) + sizeof(b.prev_id) + sizeof(txhashbuf)+sizeof(b.timestamp) ;
-        char buf[buf_size];
+        const int buf_size = sizeof(block_height) + sizeof(b.prev_id) + txhashbuf.size()+sizeof(b.timestamp) ;
+        std::vector<char> buf(buf_size);
         //LOG_PRINT_L0("hash buffer size:" << buf_size);
 
-        memcpy(buf, reinterpret_cast<void *>(&block_height), sizeof(block_height));
-        memcpy(buf + sizeof(block_height), reinterpret_cast<const char *>(&b.prev_id), sizeof(b.prev_id));
-        memcpy(buf + sizeof(block_height) + sizeof(b.prev_id), txhashbuf, sizeof(txhashbuf));
-        memcpy(buf + sizeof(block_height) + sizeof(b.prev_id)+ sizeof(txhashbuf), reinterpret_cast<const char *>(&b.timestamp), sizeof(b.timestamp));
+        memcpy(buf.data(), reinterpret_cast<void *>(&block_height), sizeof(block_height));
+        memcpy(buf.data() + sizeof(block_height), reinterpret_cast<const char *>(&b.prev_id), sizeof(b.prev_id));
+        memcpy(buf.data() + sizeof(block_height) + sizeof(b.prev_id), txhashbuf.data(), txhashbuf.size());
+        memcpy(buf.data() + sizeof(block_height) + sizeof(b.prev_id)+ txhashbuf.size(), reinterpret_cast<const char *>(&b.timestamp), sizeof(b.timestamp));
 
         crypto::hash result;
-        crypto::cn_fast_hash(buf, buf_size, result);
+        crypto::cn_fast_hash(buf.data(), buf_size, result);
 
         return result;
     }

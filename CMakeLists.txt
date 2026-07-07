@@ -107,6 +107,10 @@ if(WIN32)
     add_compile_definitions(_FORTIFY_SOURCE=0)
 endif()
 
+if(ANDROID)
+  add_compile_options(-Wno-unused-command-line-argument -Wno-error -Wno-cpp -Wno-error=cpp -Wno-unused-private-field -Wno-unused-lambda-capture -Wno-unused-result -Wno-string-plus-int -fstack-clash-protection -Wno-shift-count-overflow -Wno-deprecated-copy)
+endif()
+
 # Add this line to suppress implicit-fallthrough warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-implicit-fallthrough")
 

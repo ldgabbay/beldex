@@ -93,14 +93,16 @@ enum struct mapping_record_column
 };
 
 static constexpr unsigned char OLD_ENCRYPTION_NONCE[crypto_secretbox_NONCEBYTES] = {};
-std::pair<std::basic_string_view<unsigned char>, std::basic_string_view<unsigned char>> bns::mapping_value::value_nonce(mapping_type type) const
+std::pair<std::string_view, std::string_view> bns::mapping_value::value_nonce(mapping_type type) const
 {
-  std::pair<std::basic_string_view<unsigned char>, std::basic_string_view<unsigned char>> result;
+  std::pair<std::string_view, std::string_view> result;
   auto& [head, tail] = result;
-  head = {buffer.data(), len};
+  head = std::string_view(reinterpret_cast<const char*>(buffer.data()), len);
   if ((type == mapping_type::bchat && len != BCHAT_PUBLIC_KEY_BINARY_LENGTH + crypto_aead_xchacha20poly1305_ietf_ABYTES + crypto_aead_xchacha20poly1305_ietf_NPUBBYTES)
       || len < crypto_aead_xchacha20poly1305_ietf_NPUBBYTES /* shouldn't occur, but just in case */)
-    tail = {OLD_ENCRYPTION_NONCE, sizeof(OLD_ENCRYPTION_NONCE)};
+    tail = std::string_view(reinterpret_cast<const char*>(OLD_ENCRYPTION_NONCE), sizeof(OLD_ENCRYPTION_NONCE)
+);
+
   else
   {
     tail = head.substr(len - crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
@@ -1555,12 +1557,12 @@ bool mapping_value::decrypt(std::string_view name, mapping_type type, const cryp
     name_to_encryption_key(name, name_hash, skey);
     unsigned long long actual_length;
     encrypted = !(0 == crypto_aead_xchacha20poly1305_ietf_decrypt(
-          dec_buffer.data(), &actual_length,
+          reinterpret_cast<unsigned char*>(dec_buffer.data()), &actual_length,
           nullptr, // nsec (always null for this algo)
-          enc.data(), enc.size(),
+          reinterpret_cast<const unsigned char*>(enc.data()), enc.size(),
           nullptr, 0, // additional data
-          nonce.data(),
-          skey.data));
+          reinterpret_cast<const unsigned char*>(nonce.data()),
+          reinterpret_cast<const unsigned char*>(skey.data)));
 
     if (!encrypted) assert(actual_length == dec_length);
   }
