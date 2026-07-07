@@ -28,19 +28,19 @@
 
 function (write_static_version_header hash)
   set(VERSIONTAG "${hash}")
-  configure_file("${CMAKE_SOURCE_DIR}/src/version.cpp.in" "${CMAKE_BINARY_DIR}/version.cpp")
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.cpp.in" "${CMAKE_BINARY_DIR}/version.cpp")
 endfunction ()
 
 find_package(Git QUIET)
 if (GIT_FOUND OR Git_FOUND)
   message(STATUS "Found Git: ${GIT_EXECUTABLE}")
   set(VERSIONTAG "@VERSIONTAG@") # Will be replaced again by GenVersion.cmake, below.
-  configure_file("${CMAKE_SOURCE_DIR}/src/version.cpp.in" "${CMAKE_BINARY_DIR}/version.cpp.in")
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.cpp.in" "${CMAKE_BINARY_DIR}/version.cpp.in")
   add_custom_command(
     OUTPUT            "${CMAKE_BINARY_DIR}/version.cpp"
     COMMAND           "${CMAKE_COMMAND}"
                       "-D" "GIT=${GIT_EXECUTABLE}"
-                      "-P" "${CMAKE_SOURCE_DIR}/cmake/GenVersion.cmake"
+                      "-P" "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/GenVersion.cmake"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     DEPENDS           "${CMAKE_BINARY_DIR}/version.cpp.in")
 else()

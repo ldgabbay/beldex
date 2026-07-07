@@ -40,9 +40,12 @@ add_library(wallet_api
   subaddress_account.cpp
   unsigned_transaction.cpp)
 
+find_package(OpenSSL REQUIRED)
+
 target_link_libraries(wallet_api
   PUBLIC
     wallet
+    common
     cryptonote_core
     mnemonics
     lmdb
@@ -50,7 +53,9 @@ target_link_libraries(wallet_api
     filesystem
     Boost::thread
   PRIVATE
-    extra)
+    extra
+    OpenSSL::Crypto
+    OpenSSL::SSL)
 
 set_property(TARGET wallet_api PROPERTY EXCLUDE_FROM_ALL TRUE)
 
