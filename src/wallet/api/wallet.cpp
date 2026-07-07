@@ -56,6 +56,10 @@
 #include "epee/scope_leaver.h"
 #include "bc-ur/src/bc-ur.hpp"
 
+#ifdef WIN32
+ #include <boost/locale.hpp>
+#endif
+
 using namespace cryptonote;
 
 #undef BELDEX_DEFAULT_LOG_CATEGORY

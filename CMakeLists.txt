@@ -780,6 +780,10 @@ else()
   find_package(Boost 1.62 QUIET REQUIRED COMPONENTS system thread serialization program_options)
 endif()
 
+if(WIN32)
+  find_package(Boost 1.62 QUIET REQUIRED COMPONENTS locale)
+endif()
+
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${OLD_LIB_SUFFIXES})
 if(NOT Boost_FOUND)
   message(FATAL_ERROR "Could not find Boost libraries, please make sure you have installed Boost or libboost-all-dev (>=1.58) or the equivalent")
