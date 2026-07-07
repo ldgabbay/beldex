@@ -82,6 +82,24 @@ std::vector<std::string> PendingTransactionImpl::txid() const
 }
 
 EXPORT
+std::vector<std::string> PendingTransactionImpl::hex() const
+{
+    std::vector<std::string> hexs;
+    for (const auto &pt: m_pending_tx)
+        hexs.push_back(oxenc::to_hex(cryptonote::tx_to_blob(pt.tx)));
+    return hexs;
+}
+
+EXPORT
+std::vector<std::string> PendingTransactionImpl::txKey() const
+{
+    std::vector<std::string> keys;
+    for (const auto& pt: m_pending_tx)
+        keys.push_back(tools::type_to_hex(pt.tx_key));
+    return keys;
+}
+
+EXPORT
 bool PendingTransactionImpl::commit(std::string_view filename_, bool overwrite, bool flash)
 {
 
