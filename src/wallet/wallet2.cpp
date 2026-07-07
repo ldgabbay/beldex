@@ -1373,11 +1373,13 @@ bool wallet2::get_seed(epee::wipeable_string& electrum_words, const epee::wipeab
   bool keys_deterministic = is_deterministic();
   if (!keys_deterministic)
   {
+    THROW_WALLET_EXCEPTION(error::wallet_internal_error, "This is not a deterministic wallet");
     std::cout << "This is not a deterministic wallet" << std::endl;
     return false;
   }
   if (seed_language.empty())
   {
+    THROW_WALLET_EXCEPTION(error::wallet_internal_error, "seed_language not set");
     std::cout << "seed_language not set" << std::endl;
     return false;
   }
@@ -1387,8 +1389,9 @@ bool wallet2::get_seed(epee::wipeable_string& electrum_words, const epee::wipeab
     key = cryptonote::encrypt_key(key, passphrase);
   if (!crypto::ElectrumWords::bytes_to_words(key, electrum_words, seed_language))
   {
+    THROW_WALLET_EXCEPTION(error::wallet_internal_error, "Failed to create seed from key for language: "+seed_language+", falling back to English.");
     std::cout << "Failed to create seed from key for language: " << seed_language << std::endl;
-    return false;
+    crypto::ElectrumWords::bytes_to_words(key, electrum_words, "English");
   }
 
   return true;

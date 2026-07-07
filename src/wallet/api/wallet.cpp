@@ -857,12 +857,19 @@ bool WalletImpl::close(bool store)
 EXPORT
 std::string WalletImpl::seed() const
 {
-    if (checkBackgroundSync("cannot get seed"))
+    if (checkBackgroundSync("cannot get seed")) {
+        setStatusError("cannot get seed");
         return std::string();
-    epee::wipeable_string seed;
-    if (m_wallet_ptr)
-        wallet()->get_seed(seed);
-    return std::string(seed.data(), seed.size()); // TODO
+    }
+    try {
+        epee::wipeable_string seed;
+        if (m_wallet_ptr)
+            wallet()->get_seed(seed);
+        return std::string(seed.data(), seed.size()); // TODO
+    } catch (const std::exception &e) {
+        setStatusError(e.what());
+        return std::string();
+    }
 }
 
 EXPORT
