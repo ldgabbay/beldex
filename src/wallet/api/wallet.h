@@ -55,21 +55,14 @@ struct stakeInfo;
 // Wrapper that holds a lock to prevent background refreshes, which kill things; provides '->'
 // indirection into the tools::wallet2 instance.
 struct LockedWallet {
-    std::unique_lock<std::recursive_timed_mutex> refresh_lock;
     tools::wallet2* const wallet;
-    // Constructs a wallet wrapper from a moved existing unique_lock which may be initially locked
-    // or unlocked (if unlocked, it will be immediately locked).
-    LockedWallet(const std::unique_ptr<tools::wallet2>& w, std::unique_lock<std::recursive_timed_mutex>&& lock)
-            : refresh_lock{std::move(lock)}, wallet{w.get()} {
-        if (!refresh_lock) refresh_lock.lock();
-    }
-    // Constructs a wallet wrapper from a wallet and the refresh mutex; locks the mutex immediately.
-    LockedWallet(const std::unique_ptr<tools::wallet2>& w, std::recursive_timed_mutex& refresh_mutex)
-        : refresh_lock{refresh_mutex}, wallet{w.get()} {}
 
-    // Returns the wallet2 pointer, to allow `w->whatever()` to call into wallet functions through
-    // the locking wrapper.
-    tools::wallet2* operator->() { return wallet; }
+    LockedWallet(const std::unique_ptr<tools::wallet2>& w)
+        : wallet{w.get()} {}
+
+    tools::wallet2* operator->() {
+        return wallet;
+    }
 };
 class WalletImpl : public Wallet
 {
@@ -339,7 +332,7 @@ private:
 
     std::unique_ptr<tools::wallet2> m_wallet_ptr;
     mutable std::mutex m_statusMutex;
-    LockedWallet wallet() const { return {m_wallet_ptr, m_refreshMutex2}; }
+    LockedWallet wallet() const { return {m_wallet_ptr}; }
     mutable std::pair<int, std::string> m_status;
     // TODO: harden password handling in the wallet API, see relevant discussion
     // https://github.com/monero-project/monero-gui/issues/1537
