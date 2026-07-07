@@ -816,6 +816,8 @@ private:
         std::string proxy = "",
         bool trusted_daemon = true);
     bool set_proxy(const std::string &address);
+    bool get_refresh_enabled();
+    void set_refresh_enabled(bool val);
 
     void stop() { m_run.store(false, std::memory_order_relaxed); m_message_store.stop(); }
 
@@ -1854,6 +1856,7 @@ private:
 
     std::atomic<bool> m_run;
 
+    bool m_refreshEnabled;
     bool m_trusted_daemon;
     i_wallet2_callback* m_callback;
     hw::device::type m_key_device_type;

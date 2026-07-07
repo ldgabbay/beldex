@@ -1095,6 +1095,7 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended):
   m_upper_transaction_weight_limit(0),
   m_run(true),
   m_callback(0),
+  m_refreshEnabled(false),
   m_trusted_daemon(false),
   m_nettype(nettype),
   m_multisig_rounds_passed(0),
@@ -1343,6 +1344,14 @@ bool wallet2::init(std::string daemon_address, std::optional<tools::login> daemo
   m_is_initialized = true;
   m_upper_transaction_weight_limit = upper_transaction_weight_limit;
   return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::get_refresh_enabled() {
+    return m_refreshEnabled;
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::set_refresh_enabled(bool val) {
+    m_refreshEnabled = val;
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::set_proxy(const std::string &address)
@@ -3656,7 +3665,7 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
     process_pool_txs = get_pool_state(true /*refreshed*/);
 
   bool first = true, last = false;
-  while(m_run.load(std::memory_order_relaxed))
+  while(m_run.load(std::memory_order_relaxed) && m_refreshEnabled)
   {
     uint64_t next_blocks_start_height;
     std::vector<cryptonote::block_complete_entry> next_blocks;
