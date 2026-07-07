@@ -93,6 +93,14 @@ if(IPO_ENABLED AND (CMAKE_BUILD_TYPE STREQUAL Release OR CMAKE_BUILD_TYPE STREQU
   set_target_properties(cncrypto PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
 endif()
 
+if (CMAKE_C_COMPILER_ID STREQUAL GNU OR CMAKE_C_COMPILER_ID MATCHES Clang)
+  include(CheckCCompilerFlag)
+  check_c_compiler_flag(-Wno-error=calloc-transposed-args HAS_CALLOC_TRANSPOSED_ARGS)
+  if (HAS_CALLOC_TRANSPOSED_ARGS)
+    target_compile_options(cncrypto PRIVATE -Wno-error=calloc-transposed-args)
+  endif()
+endif()
+
 if (ARCH STREQUAL "armv8-a" AND (CMAKE_CXX_COMPILER_ID MATCHES Clang OR CMAKE_CXX_COMPILER_ID STREQUAL GNU))
   # Similarly use +crypto extensions for the arm hash code (it also has a run-time check before
   # enabling).

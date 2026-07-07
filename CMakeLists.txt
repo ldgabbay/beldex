@@ -75,6 +75,21 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+        message(STATUS "GCC 14+ detected — applying compatibility flags")
+
+        add_compile_options(
+            -Wno-error
+            -Wno-error=extra
+            -Wno-extra
+            -Wno-dangling-reference
+            -Wno-tautological-compare
+            -Wno-unused-result
+        )
+    endif()
+endif()
+
 # Add this line to suppress implicit-fallthrough warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-implicit-fallthrough")
 
