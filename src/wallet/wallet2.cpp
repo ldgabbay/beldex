@@ -1723,10 +1723,19 @@ bool wallet2::frozen(size_t idx) const
   const transfer_details &td = m_transfers[idx];
   return td.m_frozen;
 }
+void wallet2::freeze(const crypto::public_key &pk)
+{
+  freeze(get_transfer_details(pk));
+}
 //----------------------------------------------------------------------------------------------------
 void wallet2::freeze(const crypto::key_image &ki)
 {
   freeze(get_transfer_details(ki));
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::thaw(const crypto::public_key &pk)
+{
+    thaw(get_transfer_details(pk));
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::thaw(const crypto::key_image &ki)
@@ -1737,6 +1746,18 @@ void wallet2::thaw(const crypto::key_image &ki)
 bool wallet2::frozen(const crypto::key_image &ki) const
 {
   return frozen(get_transfer_details(ki));
+}
+//----------------------------------------------------------------------------------------------------
+size_t wallet2::get_transfer_details(const crypto::public_key &pk) const
+{
+    for (size_t idx = 0; idx < m_transfers.size(); ++idx)
+    {
+        const transfer_details &td = m_transfers[idx];
+        if (td.get_public_key() == pk) {
+            return idx;
+        }
+    }
+    CHECK_AND_ASSERT_THROW_MES(false, "Public key not found");
 }
 //----------------------------------------------------------------------------------------------------
 size_t wallet2::get_transfer_details(const crypto::key_image &ki) const
@@ -2177,7 +2198,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
           if (process_transaction)
           {
             pk_to_unlock_times[tx_scan_info[o].in_ephemeral.pub] = tx_scan_info[o].unlock_time;
-
+            std::unique_lock<std::shared_mutex> lock(m_transfers_mutex);
             m_transfers.emplace_back();
             transfer_details& td = m_transfers.back();
             td.m_block_height = height; // NB: will be zero for a flash; we update when the flash tx gets mined
@@ -10946,7 +10967,7 @@ void wallet2::transfer_selected_rct(std::vector<cryptonote::tx_destination_entry
   LOG_PRINT_L2("transfer_selected_rct done");
 }
 
-std::vector<size_t> wallet2::pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices) const
+std::vector<size_t> wallet2::pick_preferred_rct_inputs(uint64_t needed_money, uint32_t subaddr_account, const std::set<uint32_t> &subaddr_indices, const std::vector<crypto::key_image>& preferred_input_list) const
 {
   std::vector<size_t> picks;
   float current_output_relatdness = 1.0f;
@@ -10957,6 +10978,9 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(uint64_t needed_money, ui
   for (size_t i = 0; i < m_transfers.size(); ++i)
   {
     const transfer_details& td = m_transfers[i];
+    if (!is_preferred_input(preferred_input_list, td.m_key_image)) {
+      continue;
+    }
     if (!is_spent(td, false) && !td.m_frozen && td.is_rct() && td.amount() >= needed_money && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
@@ -10977,6 +11001,9 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(uint64_t needed_money, ui
   for (size_t i = 0; i < m_transfers.size(); ++i)
   {
     const transfer_details& td = m_transfers[i];
+    if (!is_preferred_input(preferred_input_list, td.m_key_image)) {
+      continue;
+    }
     if (!is_spent(td, false) && !td.m_frozen && !td.m_key_image_partial && td.is_rct() && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
@@ -10988,6 +11015,9 @@ std::vector<size_t> wallet2::pick_preferred_rct_inputs(uint64_t needed_money, ui
       for (size_t j = i + 1; j < m_transfers.size(); ++j)
       {
         const transfer_details& td2 = m_transfers[j];
+        if (!is_preferred_input(preferred_input_list, td.m_key_image)) {
+          continue;
+        }
         if (td2.amount() > m_ignore_outputs_above || td2.amount() < m_ignore_outputs_below)
         {
           MDEBUG("Ignoring output " << j << " of amount " << print_money(td2.amount()) << " which is outside prescribed range [" << print_money(m_ignore_outputs_below) << ", " << print_money(m_ignore_outputs_above) << "]");
@@ -11554,7 +11584,7 @@ bool wallet2::light_wallet_key_image_is_ours(const crypto::key_image& key_image,
 // This system allows for sending (almost) the entire balance, since it does
 // not generate spurious change in all txes, thus decreasing the instantaneous
 // usable balance.
-std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, beldex_construct_tx_params &tx_params, const unique_index_container& subtract_fee_from_outputs)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryptonote::tx_destination_entry> dsts, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra_base, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, beldex_construct_tx_params &tx_params, const unique_index_container& subtract_fee_from_outputs, const std::vector<crypto::key_image>& preferred_input_list)
 {
   //ensure device is let in NONE mode in any case
   LOG_PRINT_L0("create_transactions_2 get_device prio:" << priority);
@@ -11794,6 +11824,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     const transfer_details& td = m_transfers[i];
     if (!is_spent(td, false) && !td.m_frozen && !td.m_key_image_partial && td.m_key_image_known && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && subaddr_indices.count(td.m_subaddr_index.minor) == 1)
     {
+      if (!is_preferred_input(preferred_input_list, td.m_key_image)) {
+        continue;
+      }
       if (td.amount() > m_ignore_outputs_above || td.amount() < m_ignore_outputs_below)
       {
         MDEBUG("Ignoring output " << i << " of amount " << print_money(td.amount()) << " which is outside prescribed range [" << print_money(m_ignore_outputs_below) << ", " << print_money(m_ignore_outputs_above) << "]");
@@ -11881,7 +11914,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     LOG_PRINT_L1("Estimated_fee for rct tx: " << estimated_fee);
     LOG_PRINT_L1("needed_money for rct tx: " << needed_money);
     total_needed_money = needed_money + (subtract_fee_from_outputs.size() ? 0 : estimated_fee);
-    preferred_inputs = pick_preferred_rct_inputs(total_needed_money, subaddr_account, subaddr_indices);
+    preferred_inputs = pick_preferred_rct_inputs(total_needed_money, subaddr_account, subaddr_indices, preferred_input_list);
     if (!preferred_inputs.empty())
     {
       std::string s;
@@ -12314,7 +12347,7 @@ bool wallet2::sanity_check(const std::vector<wallet2::pending_tx> &ptx_vector, s
   return true;
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, cryptonote::txtype tx_type)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, const std::vector<crypto::key_image>& preferred_input_list, cryptonote::txtype tx_type)
 {
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
@@ -12328,6 +12361,9 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below
   for (size_t i = 0; i < m_transfers.size(); ++i)
   {
     const transfer_details& td = m_transfers[i];
+    if (!is_preferred_input(preferred_input_list, td.m_key_image)) {
+      continue;
+    }
     if (!is_spent(td, false) && !td.m_frozen && !td.m_key_image_partial && is_transfer_unlocked(td) && td.m_subaddr_index.major == subaddr_account && (subaddr_indices.empty() || subaddr_indices.count(td.m_subaddr_index.minor) == 1))
     {
       fund_found = true;

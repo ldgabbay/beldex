@@ -37,6 +37,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include <shared_mutex>
 
 
 namespace Wallet {
@@ -46,6 +47,7 @@ class UnsignedTransactionImpl;
 class StakeUnlockResultImpl;
 class AddressBookImpl;
 class SubaddressImpl;
+class CoinsImpl;
 class SubaddressAccountImpl;
 struct Wallet2CallbackImpl;
 struct stakeInfo;
@@ -189,12 +191,14 @@ public:
                                         std::optional<std::vector<uint64_t>> amount,
                                         uint32_t priority = 0,
                                         uint32_t subaddr_account = 0,
-                                        std::set<uint32_t> subaddr_indices = {}) override;
+                                        std::set<uint32_t> subaddr_indices = {},
+                                        const std::set<std::string> &preferred_inputs = {}) override;
     PendingTransaction* createTransaction(const std::string &dst_addr,
                                         std::optional<uint64_t> amount,
                                         uint32_t priority = 0,
                                         uint32_t subaddr_account = 0,
-                                        std::set<uint32_t> subaddr_indices = {}) override;
+                                        std::set<uint32_t> subaddr_indices = {},
+                                        const std::set<std::string> &preferred_inputs = {}) override;
     PendingTransaction* createSweepAllTransaction(uint32_t priority = 0,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
@@ -253,6 +257,7 @@ public:
     uint64_t estimateTransactionFee(uint32_t priority, uint32_t recipients = 1) const override;
     TransactionHistory * history() override;
     AddressBook * addressBook() override;
+    Coins * coins() override;
     Subaddress * subaddress() override;
     SubaddressAccount * subaddressAccount() override;
     void setListener(WalletListener * l) override;
@@ -324,6 +329,7 @@ private:
     friend class TransactionHistoryImpl;
     friend struct Wallet2CallbackImpl;
     friend class AddressBookImpl;
+    friend class CoinsImpl;
     friend class SubaddressImpl;
     friend class SubaddressAccountImpl;
 
@@ -340,6 +346,7 @@ private:
     std::unique_ptr<Wallet2CallbackImpl> m_wallet2Callback;
     std::unique_ptr<AddressBookImpl>  m_addressBook;
     std::unique_ptr<SubaddressImpl>  m_subaddress;
+    std::unique_ptr<CoinsImpl> m_coins;
     std::unique_ptr<SubaddressAccountImpl>  m_subaddressAccount;
 
     // multi-threaded refresh stuff

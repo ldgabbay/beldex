@@ -41,6 +41,7 @@
 #include "transaction_history.h"
 #include "address_book.h"
 #include "subaddress.h"
+#include "coins.h"
 #include "subaddress_account.h"
 #include "common_defines.h"
 #include "common/util.h"
@@ -486,6 +487,7 @@ WalletImpl::WalletImpl(NetworkType nettype, uint64_t kdf_rounds)
     wallet()->set_refresh_enabled(false);
     m_addressBook.reset(new AddressBookImpl(this));
     m_subaddress.reset(new SubaddressImpl(this));
+    m_coins.reset(new CoinsImpl(this));
     m_subaddressAccount.reset(new SubaddressAccountImpl(this));
 
 
@@ -2189,8 +2191,7 @@ PendingTransaction* WalletImpl::restoreMultisigTransaction(const std::string& si
 //    - confirmed_transfer_details)
 
 EXPORT
-PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std::string> &dst_addr, std::optional<std::vector<uint64_t>> amount, uint32_t priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
-
+PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std::string> &dst_addr, std::optional<std::vector<uint64_t>> amount, uint32_t priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, const std::set<std::string> &preferred_inputs)
 {
     clearStatus();
     // Pause refresh thread while creating transaction
@@ -2215,10 +2216,13 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std:
             setStatusError(tr("Destinations and amounts are unequal"));
             break;
         }
-        bool error = false;
-        auto w = wallet();
-        for (size_t i = 0; i < dst_addr.size() && !error; i++) {
-            std::optional<std::string> address = w->resolve_address(dst_addr[i]);
+        uint64_t max_coin_control_input = 0;
+        uint64_t max_frozen_input = 0;
+        try {
+            bool error = false;
+            auto w = wallet();
+            for (size_t i = 0; i < dst_addr.size() && !error; i++) {
+                std::optional<std::string> address = w->resolve_address(dst_addr[i]);
 		    if(!cryptonote::get_account_address_from_str(info, m_wallet_ptr->nettype(), *address)) {
                 // TODO: copy-paste 'if treating as an address fails, try as url' from simplewallet.cpp:1982
                 setStatusError(tr("Invalid destination address"));
@@ -2250,14 +2254,67 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std:
                 }
             }
         }
-        if (error) {
-            break;
+        // uint64_t maxAllowedSpend = m_wallet->unlocked_balance(subaddr_account, true);
+        // if (maxAllowedSpend < amountSum) {
+        //   error = true;
+        //   setStatusError(tr("Amount you are trying to spend is larger than unlocked amount"));
+        //   break;
+        // }
+        std::vector<crypto::key_image> preferred_input_list;
+        if (!preferred_inputs.empty()) {
+            LOG_ERROR("not empty");
+
+            for (const auto &public_key : preferred_inputs) {
+                crypto::key_image keyImage;
+                bool r = tools::hex_to_type(public_key, keyImage);
+                if (!r) {
+                    error = true;
+                    setStatusError(tr("failed to parse key image"));
+                    break;
+                }
+                if (wallet()->frozen(keyImage)) {
+                    error = true;
+                    setStatusError(tr("refusing to spend frozen coin"));
+                    break;
+                }
+                for (size_t i = 0; i < wallet()->get_num_transfer_details(); ++i) {
+                    const tools::wallet2::transfer_details &td = wallet()->get_transfer_details(i);
+                    if (td.m_key_image == keyImage) {
+                        max_coin_control_input += td.amount();
+                    }
+                    if (td.m_frozen) {
+                        max_frozen_input += td.amount();
+                    }
+                }
+
+                preferred_input_list.push_back(keyImage);
+            }
+        } else {
+            LOG_ERROR("not empty");
+
+            std::shared_lock<std::shared_mutex> transfers_lock(wallet()->m_transfers_mutex);
+            for (size_t i = 0; i < wallet()->get_num_transfer_details(); ++i) {
+                const tools::wallet2::transfer_details &td = wallet()->get_transfer_details(i);
+                LOG_ERROR("COIN: " << i << ": " << td.amount() << "; "<<td.m_spent << ";" << td.m_frozen << ";" << wallet()->frozen(td));
+                if (td.m_spent) continue;
+                LOG_ERROR("is frozen");
+                if (!td.m_frozen) {
+                    LOG_ERROR("isn't:");
+                    LOG_ERROR("hash: " << td.m_key_image << "; " << td.amount());
+                    preferred_input_list.push_back(td.m_key_image);
+                }
+            }
         }
-        if (!extra_nonce.empty() && !add_extra_nonce_to_tx_extra(extra, extra_nonce)) {
-            setStatusError(tr("failed to set up payment id, though it was decoded correctly"));
-            break;
-        }
-        try {
+            for (const auto &de : preferred_input_list) {
+                LOG_ERROR("preferred input: " << de);
+            }
+            if (error) {
+                break;
+            }
+            if (!extra_nonce.empty() && !add_extra_nonce_to_tx_extra(extra, extra_nonce)) {
+                setStatusError(tr("failed to set up payment id, though it was decoded correctly"));
+                break;
+            }
             auto hf_version = w->get_hard_fork_version();
             if (!hf_version)
             {
@@ -2268,11 +2325,11 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std:
                 beldex_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::standard, priority);
                 transaction->m_pending_tx = w->create_transactions_2(dsts, cryptonote::TX_OUTPUT_DECOYS, 0 /* unlock_time */,
                                                                             priority,
-                                                                            extra, subaddr_account, subaddr_indices, tx_params);
+                                                                            extra, subaddr_account, subaddr_indices, tx_params, {}, preferred_input_list);
             } else {
                 transaction->m_pending_tx = w->create_transactions_all(0, info.address, info.is_subaddress, 1, cryptonote::TX_OUTPUT_DECOYS, 0 /* unlock_time */,
                                                                               priority,
-                                                                              extra, subaddr_account, subaddr_indices);
+                                                                              extra, subaddr_account, subaddr_indices, preferred_input_list);
             }
             pendingTxPostProcess(transaction);
 
@@ -2296,6 +2353,16 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std:
             writer << boost::format(tr("not enough money to transfer, available only %s, sent amount %s")) %
                       print_money(e.available()) %
                       print_money(e.tx_amount());
+            if (max_coin_control_input != 0 &&
+                max_coin_control_input != e.available()) {
+                writer << std::endl << boost::format(tr("In addition, coin control was enabled for this transaction, limiting available balance to %s. Make sure that you have enough outputs selected in coin control")) %
+                    print_money(max_coin_control_input);
+            }
+            if (max_frozen_input != 0 &&
+                max_frozen_input != e.available()) {
+                writer << std::endl << boost::format(tr("In addition, some a total of %s is frozen. Make sure that you have enough outputs unforzen outputs in coin control")) %
+                    print_money(max_frozen_input);
+            }
             setStatusError(writer.str());
         } catch (const tools::error::not_enough_money& e) {
             std::ostringstream writer;
@@ -2303,6 +2370,16 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std:
             writer << boost::format(tr("not enough money to transfer, overall balance only %s, sent amount %s")) %
                       print_money(e.available()) %
                       print_money(e.tx_amount());
+            if (max_coin_control_input != 0 &&
+                max_coin_control_input != e.available()) {
+                writer << std::endl << boost::format(tr("In addition, coin control was enabled for this transaction, limiting available balance to %s. Make sure that you have enough outputs selected in coin control")) %
+                    print_money(max_coin_control_input);
+            }
+            if (max_frozen_input != 0 &&
+                max_frozen_input != e.available()) {
+                writer << std::endl << boost::format(tr("In addition, some a total of %s is frozen. Make sure that you have enough outputs unforzen outputs in coin control")) %
+                    print_money(max_frozen_input);
+            }
             setStatusError(writer.str());
         } catch (const tools::error::tx_not_possible& e) {
             std::ostringstream writer;
@@ -2312,6 +2389,16 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std:
                       print_money(e.tx_amount() + e.fee())  %
                       print_money(e.tx_amount()) %
                       print_money(e.fee());
+            if (max_coin_control_input != 0 &&
+                max_coin_control_input != e.available()) {
+                writer << std::endl << boost::format(tr("In addition, coin control was enabled for this transaction, limiting available balance to %s. Make sure that you have enough outputs selected in coin control")) %
+                    print_money(max_coin_control_input);
+            }
+            if (max_frozen_input != 0 &&
+                max_frozen_input != e.available()) {
+                writer << std::endl << boost::format(tr("In addition, some a total of %s is frozen. Make sure that you have enough outputs unforzen outputs in coin control")) %
+                    print_money(max_frozen_input);
+            }
             setStatusError(writer.str());
         } catch (const tools::error::not_enough_outs_to_mix& e) {
             std::ostringstream writer;
@@ -2352,10 +2439,10 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<std:
 
 EXPORT
 PendingTransaction *WalletImpl::createTransaction(const std::string &dst_addr, std::optional<uint64_t> amount,
-                                                  uint32_t priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
+                                                  uint32_t priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, const std::set<std::string> &preferred_inputs)
 
 {
-    return createTransactionMultDest(std::vector<std::string> {dst_addr},  amount ? (std::vector<uint64_t> {*amount}) : (std::optional<std::vector<uint64_t>>()), priority, subaddr_account, subaddr_indices);
+    return createTransactionMultDest(std::vector<std::string> {dst_addr},  amount ? (std::vector<uint64_t> {*amount}) : (std::optional<std::vector<uint64_t>>()), priority, subaddr_account, subaddr_indices, preferred_inputs);
 }
 
 EXPORT
@@ -3076,6 +3163,12 @@ EXPORT
 AddressBook *WalletImpl::addressBook()
 {
     return m_addressBook.get();
+}
+
+EXPORT
+Coins *WalletImpl::coins()
+{
+    return m_coins.get();
 }
 
 EXPORT

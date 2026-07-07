@@ -6228,7 +6228,7 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
     }
 
     beldex_construct_tx_params tx_params = tools::wallet2::construct_params(*hf_version, txtype::standard, priority, burn_amount);
-    ptx_vector = m_wallet->create_transactions_2(dsts, cryptonote::TX_OUTPUT_DECOYS, unlock_block, priority, extra, m_current_subaddress_account, subaddr_indices, tx_params, subtract_fee_from_outputs);
+    ptx_vector = m_wallet->create_transactions_2(dsts, cryptonote::TX_OUTPUT_DECOYS, unlock_block, priority, extra, m_current_subaddress_account, subaddr_indices, tx_params, subtract_fee_from_outputs, {});
 
     if (ptx_vector.empty())
     {
