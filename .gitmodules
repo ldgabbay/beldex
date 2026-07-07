@@ -44,3 +44,9 @@
 	path = external/bc-ur
 	url = https://github.com/MrCyjaneK/bc-ur
 	branch = misc
+[submodule "external/utf8proc"]
+	path = external/utf8proc
+	url = https://github.com/JuliaStrings/utf8proc.git
+[submodule "external/polyseed"]
+	path = external/polyseed
+	url = https://github.com/Beldex-Coin/polyseed.git

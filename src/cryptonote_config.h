@@ -187,6 +187,7 @@ inline constexpr auto P2P_NET_DATA_FILENAME         = "p2pstate.bin"sv;
 inline constexpr uint64_t PRUNING_STRIPE_SIZE      = 4096;  // the smaller, the smoother the increase
 inline constexpr uint64_t PRUNING_LOG_STRIPES      = 3;     // the higher, the more space saved
 inline constexpr uint64_t PRUNING_TIP_BLOCKS       = 5500;  // the smaller, the more space saved
+#define POLYSEED_COIN POLYSEED_BELDEX
 inline constexpr bool     PRUNING_DEBUG_SPOOF_SEED = false;  // For debugging only
 
 // Constants for hardfork versions:

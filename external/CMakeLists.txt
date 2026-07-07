@@ -64,6 +64,7 @@ add_subdirectory(easylogging++ easyloggingpp)
 add_subdirectory(bc-ur)
 add_subdirectory(randomx EXCLUDE_FROM_ALL)
 add_subdirectory(fmt)
+add_subdirectory(utf8proc EXCLUDE_FROM_ALL)
 add_subdirectory(date EXCLUDE_FROM_ALL)
 
 set(JSON_MultipleHeaders ON CACHE BOOL "") # Allows multi-header nlohmann use
@@ -81,6 +82,20 @@ file(COPY uWebSockets/uSockets/src/libusockets.h DESTINATION uWebSockets)
 add_library(uSockets STATIC EXCLUDE_FROM_ALL ${usockets_src})
 target_compile_definitions(uSockets PRIVATE LIBUS_NO_SSL=1)
 target_include_directories(uSockets PRIVATE uWebSockets/uSockets/src)
+
+# Polyseed
+file(GLOB polyseed_src
+    ${CMAKE_CURRENT_SOURCE_DIR}/polyseed/src/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/polyseed/src/*.cpp
+)
+
+add_library(polyseed STATIC EXCLUDE_FROM_ALL ${polyseed_src})
+target_include_directories(polyseed PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/polyseed/include
+)
+
+# Create an alias for convenience
+add_library(polyseed::polyseed ALIAS polyseed)
 
 # On Windows uSockets uses libuv for its event loop; on Mac kqueue is the default, but that seems to
 # not be reliable on older macos versions (like 10.12), so we use libuv on macos as well.

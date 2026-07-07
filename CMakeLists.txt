@@ -293,6 +293,8 @@ if(NOT MANUAL_SUBMODULES)
     check_submodule(external/trezor-common)
     check_submodule(external/randomx)
     check_submodule(external/loki-mq cppzmq)
+    check_submodule(external/polyseed)
+    check_submodule(external/utf8proc)
     if(BUILD_TESTS)
       check_submodule(external/googletest)
       check_submodule(external/Catch2)
@@ -351,7 +353,7 @@ endif()
 
 include(cmake/check_for_std_filesystem.cmake)
 
-include_directories(external/rapidjson/include src external)
+include_directories(external/rapidjson/include src external external/polyseed/include external/utf8proc)
 
 if(APPLE)
   include_directories(SYSTEM /usr/include/malloc)

@@ -41,6 +41,7 @@ target_link_libraries(cryptonote_basic
   PRIVATE
     common
     device
+    polyseed_wrapper
     Boost::program_options
     Boost::serialization
     filesystem
