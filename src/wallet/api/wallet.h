@@ -121,6 +121,7 @@ public:
     bool setProxy(const std::string &address) override;
     uint64_t balance(uint32_t accountIndex = 0) const override;
     uint64_t unlockedBalance(uint32_t accountIndex = 0) const override;
+    uint64_t viewOnlyBalance(uint32_t accountIndex, const std::vector<std::string> &key_images) const override;
     int countBns() override;
     std::vector<stakeInfo>* listCurrentStakes() const override;
     uint64_t blockChainHeight() const override;
@@ -219,11 +220,18 @@ public:
     std::vector<bnsInfo>* MyBns() const override;
     PendingTransaction* createSweepUnmixableTransaction() override;
     bool submitTransaction(std::string_view filename) override;
+    bool submitTransactionUR(const std::string &input) override;
     UnsignedTransaction* loadUnsignedTx(std::string_view unsigned_filename) override;
+    virtual UnsignedTransaction * loadUnsignedTxUR(const std::string &input) override;
+    bool hasUnknownKeyImages() const override;
     bool exportKeyImages(std::string_view filename) override;
+    std::string exportKeyImagesUR(size_t max_fragment_length, bool all = false) override;
     bool importKeyImages(std::string_view filename) override;
+    bool importKeyImagesUR(const std::string &input) override;
     bool exportOutputs(const std::string &filename, bool all = false) override;
+    std::string exportOutputsUR(size_t max_fragment_length, bool all) override;
     bool importOutputs(const std::string &filename) override;
+    bool importOutputsUR(const std::string &filename) override;
 
     bool setupBackgroundSync(const BackgroundSyncType background_sync_type, const std::string &wallet_password, const std::optional<std::string> &background_cache_password = std::optional<std::string>()) override;
     BackgroundSyncType getBackgroundSyncType() const override;

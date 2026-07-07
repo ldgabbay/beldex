@@ -40,6 +40,8 @@
 #include <sstream>
 #include <boost/format.hpp>
 
+#include "bc-ur/src/bc-ur.hpp"
+
 namespace Wallet {
 
 EXPORT
@@ -83,6 +85,44 @@ bool UnsignedTransactionImpl::sign(std::string_view signedFileName_)
     return false;
   }
   return true;
+}
+
+EXPORT
+std::string UnsignedTransactionImpl::signUR(int max_fragment_length)
+{
+    if(m_wallet.watchOnly())
+    {
+        m_status = {Status_Error, tr("This is a watch only wallet")};
+        return "";
+    }
+    std::vector<tools::wallet2::pending_tx> ptx;
+    try
+    {
+        tools::wallet2::signed_tx_set signed_txes;
+        std::string signedTx = m_wallet.wallet()->sign_tx_dump_to_str(m_unsigned_tx_set, ptx, signed_txes);
+        if (signedTx.empty())
+        {
+            m_status = {Status_Error, tr("Failed to sign transaction")};
+            return "";
+        }
+        auto urMessage = ur::string_to_bytes(signedTx);
+        ur::ByteVector cbor;
+        ur::CborLite::encodeBytes(cbor, urMessage);
+        std::string type = "xmr-txsigned";
+        ur::UR urData = ur::UR(type, cbor);
+        auto encoder = ur::UREncoder(urData, max_fragment_length);
+        std::string output;
+        for(size_t i = 0; i < encoder.seq_len(); i++) {
+            output.append("\n"+encoder.next_part());
+        }
+        return output;
+    }
+    catch (const std::exception &e)
+    {
+        m_status = {Status_Error, std::string(tr("Failed to sign transaction")) + e.what()};
+        return "";
+    }
+    return "";
 }
 
 //----------------------------------------------------------------------------------------------------

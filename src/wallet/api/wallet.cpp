@@ -53,6 +53,7 @@
 #include <unordered_map>
 #include <thread>
 #include "epee/scope_leaver.h"
+#include "bc-ur/src/bc-ur.hpp"
 
 using namespace cryptonote;
 
@@ -1119,6 +1120,25 @@ uint64_t WalletImpl::unlockedBalance(uint32_t accountIndex) const
 }
 
 EXPORT
+uint64_t WalletImpl::viewOnlyBalance(uint32_t accountIndex, const std::vector<std::string> &key_images) const
+{
+    clearStatus();
+
+    std::vector<crypto::key_image> kis;
+    for (const auto &key_image : key_images) {
+        crypto::key_image ki;
+        if (!tools::hex_to_type(key_image, ki))
+        {
+            setStatusError(tr("failed to parse key image"));
+            return 0;
+        }
+        kis.push_back(ki);
+    }
+
+    return wallet()->view_only_balance(accountIndex, kis);
+}
+
+EXPORT
 int WalletImpl::countBns()
 {  
     clearStatus();
@@ -1313,6 +1333,7 @@ int WalletImpl::autoRefreshInterval() const
     return m_refreshIntervalMillis;
 }
 
+EXPORT
 UnsignedTransaction* WalletImpl::loadUnsignedTx(std::string_view unsigned_filename_) {
   auto unsigned_filename = fs::u8path(unsigned_filename_);
   clearStatus();
@@ -1336,6 +1357,58 @@ UnsignedTransaction* WalletImpl::loadUnsignedTx(std::string_view unsigned_filena
 }
 
 EXPORT
+UnsignedTransaction *WalletImpl::loadUnsignedTxUR(const std::string &input) {
+    clearStatus();
+    UnsignedTransactionImpl * transaction = new UnsignedTransactionImpl(*this);
+    auto decoder = ur::URDecoder();
+
+    std::string delimiter = "\n";
+    std::string inp = input;
+    size_t pos = 0;
+    std::string token;
+    while ((pos = inp.find(delimiter)) != std::string::npos) {
+        token = inp.substr(0, pos);
+        decoder.receive_part(token);
+        inp.erase(0, pos + delimiter.length());
+    }
+    decoder.receive_part(inp);
+
+    if (decoder.is_failure()) {
+        setStatusError(decoder.result_error().what());
+        transaction->m_status = {UnsignedTransaction::Status::Status_Error, status().second};
+        return transaction;
+    }
+
+    if (!decoder.is_complete()) {
+        setStatusError("file ended but ur didn't complete");
+        transaction->m_status = {UnsignedTransaction::Status::Status_Error, status().second};
+        return transaction;
+    }
+
+    std::string data;
+    auto cbor = decoder.result_ur().cbor();
+    auto i = cbor.begin();
+    auto end = cbor.end();
+    ur::CborLite::decodeBytes(i, end, data);
+
+    if (checkBackgroundSync("cannot load tx") || !wallet()->parse_unsigned_tx_from_str(data, transaction->m_unsigned_tx_set)){
+        setStatusError(tr("Failed to load unsigned transactions"));
+        transaction->m_status = {UnsignedTransaction::Status::Status_Error, status().second};
+        return transaction;
+    }
+
+    // Check tx data and construct confirmation message
+    std::string extra_message;
+    if (!transaction->m_unsigned_tx_set.transfers.second.empty())
+        extra_message = (boost::format("%u outputs to import. ") % (unsigned)transaction->m_unsigned_tx_set.transfers.second.size()).str();
+    transaction->checkLoadedTx([&transaction](){return transaction->m_unsigned_tx_set.txes.size();}, [&transaction](size_t n)->const wallet::tx_construction_data&{return transaction->m_unsigned_tx_set.txes[n];}, extra_message);
+    auto [code, msg] = transaction->status();
+    setStatus(code, std::move(msg));
+
+    return transaction;
+}
+
+EXPORT
 bool WalletImpl::submitTransaction(std::string_view filename_) {
   auto fileName = fs::u8path(filename_);
   clearStatus();
@@ -1355,6 +1428,61 @@ bool WalletImpl::submitTransaction(std::string_view filename_) {
   }
 
   return true;
+}
+
+EXPORT
+bool WalletImpl::submitTransactionUR(const std::string &input) {
+    clearStatus();
+    auto decoder = ur::URDecoder();
+
+    std::string delimiter = "\n";
+    std::string inp = input;
+    size_t pos = 0;
+    std::string token;
+    while ((pos = inp.find(delimiter)) != std::string::npos) {
+        token = inp.substr(0, pos);
+        decoder.receive_part(token);
+        inp.erase(0, pos + delimiter.length());
+    }
+    decoder.receive_part(inp);
+
+    if (decoder.is_failure()) {
+        setStatusError(decoder.result_error().what());
+        return false;
+    }
+
+    if (!decoder.is_complete()) {
+        setStatusError("file ended but ur didn't complete");
+        return false;
+    }
+
+    std::string data;
+    auto cbor = decoder.result_ur().cbor();
+    auto i = cbor.begin();
+    auto end = cbor.end();
+    ur::CborLite::decodeBytes(i, end, data);
+    if (checkBackgroundSync("cannot submit tx"))
+        return false;
+    std::unique_ptr<PendingTransactionImpl> transaction(new PendingTransactionImpl(*this));
+
+    bool r = wallet()->parse_tx_from_str(data, transaction->m_pending_tx, NULL);
+    if (!r) {
+        setStatus(Status_Ok, tr("Failed to load transaction from file"));
+        return false;
+    }
+
+    if(!transaction->commit()) {
+        setStatusError(transaction->status().second);
+        return false;
+    }
+
+    return true;
+}
+
+EXPORT
+bool WalletImpl::hasUnknownKeyImages() const
+{
+    return wallet()->has_unknown_key_images();
 }
 
 EXPORT
@@ -1388,6 +1516,40 @@ bool WalletImpl::exportKeyImages(std::string_view filename_)
 }
 
 EXPORT
+std::string WalletImpl::exportKeyImagesUR(size_t max_fragment_length, bool all)
+{
+    if (wallet()->watch_only())
+    {
+        setStatusError(tr("Wallet is view only"));
+        return "";
+    }
+    if (checkBackgroundSync("cannot export key images"))
+        return "";
+
+    try
+    {
+        std::string keyImages = wallet()->export_key_images_str(all);
+        auto urMessage = ur::string_to_bytes(keyImages);
+        ur::ByteVector cbor;
+        ur::CborLite::encodeBytes(cbor, urMessage);
+        ur::UR urData = ur::UR("xmr-keyimage", cbor);
+        auto encoder = ur::UREncoder(urData, max_fragment_length);
+        std::string output;
+        for(size_t i = 0; i < encoder.seq_len(); i++) {
+            output.append("\n"+encoder.next_part());
+        }
+        return output;
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR("Error exporting key images: " << e.what());
+        setStatusError(e.what());
+        return "";
+    }
+    return "";
+}
+
+EXPORT
 bool WalletImpl::importKeyImages(std::string_view filename_)
 {
   if (checkBackgroundSync("cannot import key images"))
@@ -1412,6 +1574,61 @@ bool WalletImpl::importKeyImages(std::string_view filename_)
   }
 
   return true;
+}
+
+EXPORT
+bool WalletImpl::importKeyImagesUR(const std::string &input)
+{
+    if (checkBackgroundSync("cannot import key images"))
+        return false;
+    if (!trustedDaemon()) {
+        setStatusError(tr("Key images can only be imported with a trusted daemon"));
+        return false;
+    }
+    try
+    {
+        auto decoder = ur::URDecoder();
+        std::string delimiter = "\n";
+        std::string inp = input;
+        size_t pos = 0;
+        std::string token;
+        while ((pos = inp.find(delimiter)) != std::string::npos) {
+            token = inp.substr(0, pos);
+            decoder.receive_part(token);
+            inp.erase(0, pos + delimiter.length());
+        }
+        decoder.receive_part(inp);
+
+        if (decoder.is_failure()) {
+            setStatusError(decoder.result_error().what());
+            return false;
+        }
+
+        if (!decoder.is_complete()) {
+            setStatusError("file ended but ur didn't complete");
+            return false;
+        }
+
+        std::string data;
+        auto cbor = decoder.result_ur().cbor();
+        auto i = cbor.begin();
+        auto end = cbor.end();
+        ur::CborLite::decodeBytes(i, end, data);
+
+        uint64_t spent = 0, unspent = 0;
+
+        uint64_t height = wallet()->import_key_images_str(data, spent, unspent);
+        LOG_PRINT_L2("Signed key images imported to height " << height << ", "
+                                                             << print_money(spent) << " spent, " << print_money(unspent) << " unspent");
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR("Error exporting key images: " << e.what());
+        setStatusError(std::string(tr("Failed to import key images: ")) + e.what());
+        return false;
+    }
+
+    return true;
 }
 
 EXPORT
@@ -1449,6 +1666,40 @@ bool WalletImpl::exportOutputs(const std::string &filename, bool all)
 }
 
 EXPORT
+std::string WalletImpl::exportOutputsUR(size_t max_fragment_length, bool all)
+{
+
+    if (checkBackgroundSync("cannot export outputs"))
+        return "";
+    if (wallet()->key_on_device())
+    {
+        setStatusError(std::string(tr("Not supported on HW wallets.")));
+        return "";
+    }
+
+    try
+    {
+        std::string data = wallet()->export_outputs_to_str(all);
+        auto urMessage = ur::string_to_bytes(data);
+        ur::ByteVector cbor;
+        ur::CborLite::encodeBytes(cbor, urMessage);
+        ur::UR urData = ur::UR("xmr-output", cbor);
+        auto encoder = ur::UREncoder(urData, max_fragment_length);
+        std::string output;
+        for(size_t i = 0; i < encoder.seq_len(); i++) {
+            output.append("\n"+encoder.next_part());
+        }
+        return output;
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR("Error exporting outputs: " << e.what());
+        setStatusError(std::string(tr("Error exporting outputs: ")) + e.what());
+        return "";
+    }
+}
+
+EXPORT
 bool WalletImpl::importOutputs(const std::string &filename)
 {
     if (checkBackgroundSync("cannot import outputs"))
@@ -1473,6 +1724,60 @@ bool WalletImpl::importOutputs(const std::string &filename)
     try
     {
         size_t n_outputs = wallet()->import_outputs_from_str(data);
+        LOG_PRINT_L2(std::to_string(n_outputs) << " outputs imported");
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR("Failed to import outputs: " << e.what());
+        setStatusError(std::string(tr("Failed to import outputs: ")) + e.what());
+        return false;
+    }
+
+    return true;
+}
+
+EXPORT
+bool WalletImpl::importOutputsUR(const std::string &input)
+{
+    if (checkBackgroundSync("cannot import outputs"))
+        return false;
+    if (wallet()->key_on_device())
+    {
+        setStatusError(std::string(tr("Not supported on HW wallets.")));
+        return false;
+    }
+
+    try
+    {
+        auto decoder = ur::URDecoder();
+
+        std::string delimiter = "\n";
+        std::string inp = input;
+        size_t pos = 0;
+        std::string token;
+        while ((pos = inp.find(delimiter)) != std::string::npos) {
+            token = inp.substr(0, pos);
+            decoder.receive_part(token);
+            inp.erase(0, pos + delimiter.length());
+        }
+        decoder.receive_part(inp);
+
+        if (decoder.is_failure()) {
+            setStatusError(decoder.result_error().what());
+            return false;
+        }
+
+        if (!decoder.is_complete()) {
+            setStatusError("file ended but ur didn't complete");
+            return false;
+        }
+
+        std::string data;
+        auto cbor = decoder.result_ur().cbor();
+        auto i = cbor.begin();
+        auto end = cbor.end();
+        ur::CborLite::decodeBytes(i, end, data);
+        size_t n_outputs = wallet()->import_outputs_from_str(std::string(data));
         LOG_PRINT_L2(std::to_string(n_outputs) << " outputs imported");
     }
     catch (const std::exception &e)

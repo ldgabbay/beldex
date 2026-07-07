@@ -42,6 +42,8 @@
 #include <sstream>
 #include <boost/format.hpp>
 
+#include "bc-ur/src/bc-ur.hpp"
+
 namespace Wallet {
 
 EXPORT
@@ -151,6 +153,36 @@ bool PendingTransactionImpl::commit(std::string_view filename_, bool overwrite, 
     }
 
     return good();
+}
+
+EXPORT
+std::string PendingTransactionImpl::commitUR(int max_fragment_length) {
+
+    LOG_PRINT_L3("m_pending_tx size: " << m_pending_tx.size());
+
+    try {
+        std::string ptx = m_wallet.wallet()->dump_tx_to_str(m_pending_tx);
+        good();
+        auto urMessage = ur::string_to_bytes(ptx);
+        ur::ByteVector cbor;
+        ur::CborLite::encodeBytes(cbor, urMessage);
+        std::string type;
+        if (m_wallet.watchOnly()) {
+            type = "xmr-txunsigned";
+        } else {
+            type = "xmr-txsigned";
+        }
+        ur::UR urData = ur::UR(type, cbor);
+        auto encoder = ur::UREncoder(urData, max_fragment_length);
+        std::string output;
+        for(size_t i = 0; i < encoder.seq_len(); i++) {
+            output.append("\n"+encoder.next_part());
+        }
+        return output;
+    } catch (const std::exception &e) {
+        m_status = {Status_Error, std::string(tr("Unknown exception: ")) + e.what()};
+        return "";
+    }
 }
 
 EXPORT

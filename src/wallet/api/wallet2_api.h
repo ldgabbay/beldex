@@ -76,6 +76,7 @@ struct PendingTransaction
     virtual std::pair<int, std::string> status() const = 0;
     // commit transaction or save to file if filename (utf-8) is provided.
     virtual bool commit(std::string_view filename = "", bool overwrite = false, bool flash = false) = 0;
+    virtual std::string commitUR(int max_fragment_length = 130) = 0;
     virtual uint64_t amount() const = 0;
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
@@ -156,6 +157,7 @@ struct UnsignedTransaction
     * return - true on success
     */
     virtual bool sign(std::string_view signedFileName) = 0;
+    virtual std::string signUR(int max_fragment_length = 130) = 0;
 };
 
 /**
@@ -645,6 +647,7 @@ struct Wallet
             result += unlockedBalance(i);
         return result;
     }
+    virtual uint64_t viewOnlyBalance(uint32_t accountIndex, const std::vector<std::string> &key_images = {}) const = 0;
 
     /**
     * @brief interface for counting number of BNS
@@ -1014,6 +1017,7 @@ struct Wallet
     *                          after object returned
     */
     virtual UnsignedTransaction* loadUnsignedTx(std::string_view unsigned_filename) = 0;
+    virtual UnsignedTransaction * loadUnsignedTxUR(const std::string &input) = 0;
 
    /*!
     * \brief submitTransaction - submits transaction in signed tx file (utf8 filename)
@@ -1021,7 +1025,7 @@ struct Wallet
     * \return                  - true on success
     */
     virtual bool submitTransaction(std::string_view filename) = 0;
-
+    virtual bool submitTransactionUR(const std::string &input) = 0;
 
     /*!
      * \brief disposeTransaction - destroys transaction object
@@ -1037,12 +1041,15 @@ struct Wallet
      */
     virtual uint64_t estimateTransactionFee(uint32_t priority, uint32_t recipients = 1) const = 0;
 
+    virtual bool hasUnknownKeyImages() const = 0;
+
    /*!
     * \brief exportKeyImages - exports key images to file
     * \param filename - utf8 filename to write to
     * \return                  - true on success
     */
     virtual bool exportKeyImages(std::string_view filename) = 0;
+    virtual std::string exportKeyImagesUR(size_t max_fragment_length, bool all = false) = 0;
 
    /*!
     * \brief importKeyImages - imports key images from file
@@ -1050,6 +1057,7 @@ struct Wallet
     * \return                  - true on success
     */
     virtual bool importKeyImages(std::string_view filename) = 0;
+    virtual bool importKeyImagesUR(const std::string &input) = 0;
 
     /*!
      * \brief exportOutputs - exports outputs to file
@@ -1057,6 +1065,7 @@ struct Wallet
      * \return                  - true on success
      */
     virtual bool exportOutputs(const std::string &filename, bool all = false) = 0;
+    virtual std::string exportOutputsUR(size_t max_fragment_length, bool all = false) = 0;
 
     /*!
      * \brief importOutputs - imports outputs from file
@@ -1064,6 +1073,7 @@ struct Wallet
      * \return                  - true on success
      */
     virtual bool importOutputs(const std::string &filename) = 0;
+    virtual bool importOutputsUR(const std::string &filename) = 0;
 
     /*!
      * \brief setupBackgroundSync       - setup background sync mode with just a view key

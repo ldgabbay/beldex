@@ -40,6 +40,7 @@ add_library(wallet
 target_link_libraries(wallet
   PUBLIC
     multisig
+    bc-ur
     rpc_commands
     rpc_common
     cryptonote_core

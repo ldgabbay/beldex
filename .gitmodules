@@ -40,3 +40,7 @@
 [submodule "external/Catch2"]
 	path = external/Catch2
 	url = https://github.com/catchorg/Catch2
+[submodule "external/bc-ur"]
+	path = external/bc-ur
+	url = https://github.com/MrCyjaneK/bc-ur
+	branch = misc

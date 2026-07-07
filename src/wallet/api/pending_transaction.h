@@ -48,6 +48,7 @@ public:
     void setError(std::string error_msg) override;
     bool good() const override { return m_status.first == Status_Ok; }
     bool commit(std::string_view filename = "", bool overwrite = false, bool flash = false) override;
+    std::string commitUR(int max_fragment_length = 130) override;
     uint64_t amount() const override;
     uint64_t dust() const override;
     uint64_t fee() const override;
